@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import {
+  fetchDepositsForMonth,
   fetchExpenses,
   fetchMealsForMonth,
   fetchProfiles,
@@ -18,7 +19,7 @@ export default async function SettlementPage() {
   const mk = monthKey();
 
   if (!isSupabaseConfigured) {
-    const computed = computeSettlement(mk, DEMO_MEMBERS, [], []);
+    const computed = computeSettlement(mk, DEMO_MEMBERS, [], [], []);
     return (
       <SettlementClient month={mk} computed={computed} saved={null} history={[]} />
     );
@@ -26,15 +27,16 @@ export default async function SettlementPage() {
 
   const supabase = createClient();
   const { start, end } = monthRange(mk);
-  const [profiles, expenses, meals, saved, history] = await Promise.all([
+  const [profiles, expenses, meals, deposits, saved, history] = await Promise.all([
     fetchProfiles(supabase),
     fetchExpenses(supabase, { from: start, to: end }),
     fetchMealsForMonth(supabase, mk),
+    fetchDepositsForMonth(supabase, mk),
     fetchSettlement(supabase, mk),
     fetchSettlements(supabase),
   ]);
 
-  const computed = computeSettlement(mk, profiles, expenses, meals);
+  const computed = computeSettlement(mk, profiles, expenses, meals, deposits);
 
   return (
     <SettlementClient

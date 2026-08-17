@@ -52,13 +52,23 @@ export interface MealEntry {
   updated_at: string;
 }
 
+export interface Deposit {
+  id: string;
+  member_id: string;
+  amount: number;
+  deposit_date: string; // date (YYYY-MM-DD)
+  note: string | null;
+  recorded_by: string | null;
+  created_at: string;
+}
+
 // One row per member inside a settlement's breakdown JSON.
 export interface SettlementLine {
   member_id: string;
   name: string;
   meals: number;
   share: number; // amount this member should pay
-  paid: number; // amount this member actually spent (their expenses)
+  paid: number; // amount this member deposited into the pot
   balance: number; // paid - share  (positive = receives, negative = owes)
 }
 
@@ -121,6 +131,11 @@ export interface Database {
         Row: Row<MealEntry>;
         Insert: Insert<MealEntry>;
         Update: Update<MealEntry>;
+      };
+      deposits: {
+        Row: Row<Deposit>;
+        Insert: Insert<Deposit>;
+        Update: Update<Deposit>;
       };
       monthly_settlements: {
         Row: Row<Omit<MonthlySettlement, "breakdown"> & { breakdown: unknown }>;

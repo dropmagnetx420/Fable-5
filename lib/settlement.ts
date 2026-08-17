@@ -1,4 +1,5 @@
 import type {
+  Deposit,
   ExpenseWithDetails,
   MealEntry,
   Profile,
@@ -17,14 +18,15 @@ export interface ComputedSettlement {
  * Core mess accounting:
  *   per-meal cost = total expense ÷ total meals
  *   member share  = per-meal cost × member's meals
- *   balance       = what they paid − their share
+ *   balance       = what they deposited − their share
  *                   (positive → receives money back, negative → owes)
  */
 export function computeSettlement(
   month: string,
   profiles: Profile[],
   expenses: Pick<ExpenseWithDetails, "amount" | "created_by">[],
-  meals: MealEntry[]
+  meals: MealEntry[],
+  deposits: Pick<Deposit, "amount" | "member_id">[]
 ): ComputedSettlement {
   const total_expense = expenses.reduce((s, e) => s + Number(e.amount), 0);
   const total_meals = meals.reduce((s, m) => s + m.meal_count, 0);
@@ -35,9 +37,10 @@ export function computeSettlement(
     mealsByMember.set(m.member_id, (mealsByMember.get(m.member_id) ?? 0) + m.meal_count);
   }
 
+  // "paid" now means money deposited into the mess pot (not personal spend).
   const paidByMember = new Map<string, number>();
-  for (const e of expenses) {
-    paidByMember.set(e.created_by, (paidByMember.get(e.created_by) ?? 0) + Number(e.amount));
+  for (const d of deposits) {
+    paidByMember.set(d.member_id, (paidByMember.get(d.member_id) ?? 0) + Number(d.amount));
   }
 
   const breakdown: SettlementLine[] = profiles.map((p) => {

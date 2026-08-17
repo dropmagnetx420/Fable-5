@@ -19,10 +19,16 @@ Bilingual UI — **English** (default) with a one-tap **বাংলা** toggle
   they can never be edited or deleted (only the Manager can soft-remove a whole entry).
 - **Daily meals (Manager only)** — per-day, per-member meal counts with +/– steppers;
   edit any past day.
+- **Deposits / জমা (Manager records)** — log who paid how much into the mess pot and on
+  what date; everyone can view per-member totals and the full deposit history.
 - **Monthly settlement** — per-meal cost = total expense ÷ total meals; each member's
-  share = per-meal cost × their meals; see who **owes** and who **receives**, mark it
-  settled (🎉 confetti), and keep a permanent history. Export a **PDF report**.
+  share = per-meal cost × their meals; **balance = deposits − share**, so you see who
+  **owes** and who **receives**. Mark it settled (🎉 confetti), keep a permanent history,
+  and export a **PDF report**.
 - **Dashboard** — animated counter cards, quick actions, and a recent-expenses feed.
+- **Admin panel (`/foisal`)** — a secret, passcode-protected page (outside the normal
+  login) to **rotate the Manager each month** and **edit the 6 members' names/phones**
+  centrally. Guarded by `ADMIN_PASSCODE` + the Supabase service-role key.
 - **Extras** — member directory, editable profile (name / phone / photo, language,
   theme), in-app notifications, search & filters, empty/loading states, page
   transitions, dark mode, and installable PWA (offline fallback + add-to-home-screen).
@@ -80,8 +86,10 @@ npm run typecheck  # tsc --noEmit
 2. In the dashboard go to **SQL Editor → New query**, paste the **entire contents of
    [`supabase/schema.sql`](supabase/schema.sql)**, and **Run**. This one file creates:
    - all tables (`profiles`, `expenses`, `expense_photos`, `meal_entries`,
-     `monthly_settlements`, `notifications`),
-   - **Row Level Security** policies (immutable photos, manager-only meals/settlements),
+     `deposits`, `monthly_settlements`, `notifications`),
+   - **Row Level Security** policies (immutable photos, manager-only meals/deposits/
+     settlements, and a trigger so a member **can't self-promote** to manager — the
+     role is only changeable via `/foisal`),
    - triggers (first-user → manager, expense notifications, `updated_at`),
    - the **`expense-photos`** and **`avatars`** storage buckets, and
    - Realtime broadcasting for the relevant tables.
@@ -107,8 +115,29 @@ Copy `.env.example` → `.env.local` and set:
 | ------------------------------- | :------: | --------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_SUPABASE_URL`      |    ✅    | Project URL, e.g. `https://abcdxyz.supabase.co`                             |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |    ✅    | Public anon key (safe in the browser)                                       |
-| `SUPABASE_SERVICE_ROLE_KEY`     |    –     | Server-only admin key (optional; keep secret, never expose to the client)   |
+| `SUPABASE_SERVICE_ROLE_KEY`     |   ✅¹   | Server-only admin key. **Required for `/foisal`** (manager rotation & name edits); keep secret, never expose to the client |
+| `ADMIN_PASSCODE`                |   ✅¹   | Server-only secret passcode that unlocks `/foisal`. Pick a long, random value  |
 | `NEXT_PUBLIC_SITE_URL`          |    ✅    | Public site URL for email / magic-link redirects (`http://localhost:3000` locally) |
+
+¹ Required only for the `/foisal` admin panel. Without **both**, `/foisal` shows
+"not configured"; the rest of the app runs fine.
+
+---
+
+## 👑 Monthly manager rotation (`/foisal`)
+
+The mess Manager changes every month, so manager selection lives on a secret,
+passcode-protected page **outside** the normal login:
+
+1. Set `ADMIN_PASSCODE` and `SUPABASE_SERVICE_ROLE_KEY` (see above).
+2. Go to **`/foisal`** and enter the passcode.
+3. Pick the member who is Manager this month (**Make manager**) — the role moves
+   atomically, so there is always exactly **one** Manager. You can also edit each
+   member's **name / phone** here.
+
+Members can still edit their own name/phone/photo from **Profile**, but **only**
+`/foisal` can change the manager `role` — a database trigger blocks anyone else from
+self-promoting.
 
 ---
 
@@ -149,13 +178,14 @@ or on Netlify), not in `npm run dev`.
 ```
 app/
   (auth)/            login & register (magic link + password)
-  (app)/             dashboard, expenses, meals, settlement, members, profile
+  (app)/             dashboard, expenses, meals, deposits, settlement, members, profile
+  foisal/            secret passcode admin panel (manager rotation + name edits)
   auth/callback/     Supabase email/magic-link exchange
 components/          ui kit, layout shell, and per-feature client components
 lib/
-  supabase/          browser + server clients, middleware, env guard
+  supabase/          browser + server clients, middleware, env guard, service-role admin
   queries.ts         typed data fetchers
-  settlement.ts      per-meal cost & balance math
+  settlement.ts      per-meal cost & deposit-based balance math
   pdf.ts             monthly settlement PDF
   i18n/              English + Bengali dictionaries
 supabase/schema.sql  full schema + RLS + storage + triggers (run once)

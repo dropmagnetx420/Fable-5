@@ -333,7 +333,8 @@ function SettlementRow({
         </p>
         <p className="text-xs text-muted-foreground">
           {line.meals} {t.settlement.meals} · {t.settlement.share}{" "}
-          {formatCurrency(line.share)}
+          {formatCurrency(line.share)} · {t.settlement.deposited}{" "}
+          {formatCurrency(line.paid)}
         </p>
       </div>
       <div className="text-right">

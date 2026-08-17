@@ -59,6 +59,17 @@ create table if not exists public.meal_entries (
   unique (member_id, entry_date)
 );
 
+-- Money each member deposits into the mess pot (manager-recorded, all view).
+create table if not exists public.deposits (
+  id           uuid primary key default gen_random_uuid(),
+  member_id    uuid not null references public.profiles (id) on delete cascade,
+  amount       numeric(12, 2) not null check (amount > 0),
+  deposit_date date not null default current_date,
+  note         text,
+  recorded_by  uuid references public.profiles (id),
+  created_at   timestamptz not null default now()
+);
+
 -- Frozen monthly settlement snapshots. Kept forever for history.
 create table if not exists public.monthly_settlements (
   id            uuid primary key default gen_random_uuid(),
@@ -92,6 +103,8 @@ create index if not exists idx_expenses_not_deleted on public.expenses (is_delet
 create index if not exists idx_photos_expense on public.expense_photos (expense_id);
 create index if not exists idx_meals_date on public.meal_entries (entry_date);
 create index if not exists idx_meals_member on public.meal_entries (member_id);
+create index if not exists idx_deposits_date on public.deposits (deposit_date desc);
+create index if not exists idx_deposits_member on public.deposits (member_id);
 create index if not exists idx_notif_user on public.notifications (user_id, is_read);
 
 -- ----------------------------------------------------------------------------
@@ -188,6 +201,28 @@ create trigger meal_entries_set_updated_at
   before update on public.meal_entries
   for each row execute function public.set_updated_at();
 
+-- Lock down role changes: a member must NOT be able to promote themselves.
+-- Only a service-role request (the /foisal admin panel) may change role.
+-- Name/phone/avatar edits leave role unchanged, so they still pass.
+create or replace function public.prevent_unauthorized_role_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.role is distinct from old.role and auth.role() <> 'service_role' then
+    raise exception 'role can only be changed via the admin panel';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_role_change on public.profiles;
+create trigger prevent_role_change
+  before update on public.profiles
+  for each row execute function public.prevent_unauthorized_role_change();
+
 -- ----------------------------------------------------------------------------
 -- 3. ROW LEVEL SECURITY
 -- ----------------------------------------------------------------------------
@@ -196,6 +231,7 @@ alter table public.profiles            enable row level security;
 alter table public.expenses            enable row level security;
 alter table public.expense_photos      enable row level security;
 alter table public.meal_entries        enable row level security;
+alter table public.deposits            enable row level security;
 alter table public.monthly_settlements enable row level security;
 alter table public.notifications       enable row level security;
 
@@ -270,6 +306,26 @@ create policy "manager updates meals"
 drop policy if exists "manager deletes meals" on public.meal_entries;
 create policy "manager deletes meals"
   on public.meal_entries for delete to authenticated
+  using (public.is_manager(auth.uid()));
+
+-- deposits  (manager only writes; everyone views) -----------------------
+drop policy if exists "deposits viewable by members" on public.deposits;
+create policy "deposits viewable by members"
+  on public.deposits for select to authenticated using (true);
+
+drop policy if exists "manager inserts deposit" on public.deposits;
+create policy "manager inserts deposit"
+  on public.deposits for insert to authenticated
+  with check (public.is_manager(auth.uid()));
+
+drop policy if exists "manager updates deposit" on public.deposits;
+create policy "manager updates deposit"
+  on public.deposits for update to authenticated
+  using (public.is_manager(auth.uid())) with check (public.is_manager(auth.uid()));
+
+drop policy if exists "manager deletes deposit" on public.deposits;
+create policy "manager deletes deposit"
+  on public.deposits for delete to authenticated
   using (public.is_manager(auth.uid()));
 
 -- monthly_settlements  (manager only writes) ----------------------------
@@ -363,6 +419,7 @@ begin
   begin execute 'alter publication supabase_realtime add table public.expenses'; exception when duplicate_object then null; end;
   begin execute 'alter publication supabase_realtime add table public.expense_photos'; exception when duplicate_object then null; end;
   begin execute 'alter publication supabase_realtime add table public.meal_entries'; exception when duplicate_object then null; end;
+  begin execute 'alter publication supabase_realtime add table public.deposits'; exception when duplicate_object then null; end;
   begin execute 'alter publication supabase_realtime add table public.monthly_settlements'; exception when duplicate_object then null; end;
   begin execute 'alter publication supabase_realtime add table public.notifications'; exception when duplicate_object then null; end;
 end $$;

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
+  Deposit,
   ExpenseWithDetails,
   MealEntry,
   MonthlySettlement,
@@ -57,6 +58,22 @@ export async function fetchMealsForMonth(
     .lte("entry_date", end);
   if (error) return [];
   return (data ?? []) as MealEntry[];
+}
+
+/** Deposit rows for a given 'YYYY-MM'. */
+export async function fetchDepositsForMonth(
+  sb: DB,
+  month: string
+): Promise<Deposit[]> {
+  const { start, end } = monthRange(month);
+  const { data, error } = await sb
+    .from("deposits")
+    .select("*")
+    .gte("deposit_date", start)
+    .lte("deposit_date", end)
+    .order("deposit_date", { ascending: false });
+  if (error) return [];
+  return (data ?? []) as Deposit[];
 }
 
 /** Meal entries for a single day, keyed by member id. */

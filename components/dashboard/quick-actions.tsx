@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Plus, Users, UtensilsCrossed, Wallet } from "lucide-react";
+import { PiggyBank, Plus, Users, UtensilsCrossed, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { useIsManager } from "@/components/providers/session-provider";
@@ -33,6 +33,12 @@ export function QuickActions() {
           },
         ]
       : []),
+    {
+      href: "/deposits",
+      icon: PiggyBank,
+      label: t.deposits.title,
+      box: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    },
     {
       href: "/settlement",
       icon: Wallet,

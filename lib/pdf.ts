@@ -52,7 +52,7 @@ export function generateSettlementPdf(s: SettlementPdfInput) {
   let finalY = y + 12;
   autoTable(doc, {
     startY: y + 12,
-    head: [["Member", "Meals", "Share", "Paid", "Balance"]],
+    head: [["Member", "Meals", "Share", "Deposited", "Balance"]],
     body: s.breakdown.map((l) => [
       l.name,
       String(l.meals),

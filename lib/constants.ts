@@ -47,9 +47,11 @@ export const ROUTES = {
   expenses: "/expenses",
   addExpense: "/expenses/new",
   meals: "/meals",
+  deposits: "/deposits",
   settlement: "/settlement",
   members: "/members",
   profile: "/profile",
+  foisal: "/foisal",
   login: "/login",
   register: "/register",
 } as const;
