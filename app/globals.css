@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Warm cream light theme */
+    --background: 40 38% 97%;
+    --foreground: 200 18% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 200 18% 16%;
+
+    --cream: 40 40% 94%;
+
+    /* Teal primary */
+    --primary: 173 70% 38%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Soft green accent */
+    --accent: 152 56% 55%;
+    --accent-foreground: 152 60% 16%;
+
+    --secondary: 145 45% 90%;
+    --secondary-foreground: 160 30% 22%;
+
+    --muted: 40 24% 92%;
+    --muted-foreground: 200 10% 42%;
+
+    --border: 40 20% 87%;
+    --input: 40 20% 87%;
+    --ring: 173 70% 38%;
+
+    --success: 152 60% 42%;
+    --warning: 38 92% 50%;
+    --danger: 0 72% 55%;
+
+    --radius: 1rem;
+  }
+
+  .dark {
+    /* Deep teal-tinted dark */
+    --background: 192 32% 7%;
+    --foreground: 40 22% 92%;
+
+    --card: 195 26% 11%;
+    --card-foreground: 40 22% 92%;
+
+    --cream: 195 24% 13%;
+
+    --primary: 173 66% 46%;
+    --primary-foreground: 195 40% 8%;
+
+    --accent: 152 48% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    --secondary: 190 24% 18%;
+    --secondary-foreground: 40 20% 90%;
+
+    --muted: 195 22% 17%;
+    --muted-foreground: 195 12% 62%;
+
+    --border: 195 20% 20%;
+    --input: 195 20% 22%;
+    --ring: 173 66% 46%;
+
+    --success: 152 55% 48%;
+    --warning: 38 90% 55%;
+    --danger: 0 68% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Switch to the Bengali typeface when locale = bn. */
+  html[lang="bn"] body {
+    font-family: var(--font-bangla), var(--font-sans), system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+    /* subtle warm radial glow behind content */
+    background-image: radial-gradient(
+        1200px 600px at 100% -10%,
+        hsl(var(--primary) / 0.07),
+        transparent 60%
+      ),
+      radial-gradient(
+        1000px 500px at -10% 10%,
+        hsl(var(--accent) / 0.06),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass {
+    @apply border border-white/40 bg-white/70 backdrop-blur-xl;
+  }
+  .dark .glass {
+    @apply border-white/10 bg-white/5;
+  }
+
+  .card-surface {
+    @apply rounded-2xl border border-border bg-card text-card-foreground shadow-card;
+  }
+
+  /* Skeleton shimmer */
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-muted;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.06),
+      transparent
+    );
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-gradient-teal bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+  background-clip: content-box;
+}
