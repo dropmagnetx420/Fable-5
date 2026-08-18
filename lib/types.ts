@@ -9,6 +9,7 @@ export type NotificationType =
   | "expense"
   | "settlement"
   | "meal"
+  | "deposit"
   | "system";
 
 export interface Profile {

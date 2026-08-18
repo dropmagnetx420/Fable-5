@@ -88,13 +88,20 @@ create table if not exists public.notifications (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles (id) on delete cascade,
   type       text not null default 'system'
-             check (type in ('expense', 'settlement', 'meal', 'system')),
+             check (type in ('expense', 'settlement', 'meal', 'deposit', 'system')),
   title      text not null,
   body       text,
   link       text,
   is_read    boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- Existing DBs: widen the notifications type check to allow 'deposit'
+-- (create table if not exists above won't alter an existing constraint).
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications
+  add constraint notifications_type_check
+  check (type in ('expense', 'settlement', 'meal', 'deposit', 'system'));
 
 -- Helpful indexes
 create index if not exists idx_expenses_spent_on on public.expenses (spent_on desc);
@@ -186,6 +193,38 @@ drop trigger if exists on_expense_created on public.expenses;
 create trigger on_expense_created
   after insert on public.expenses
   for each row execute function public.notify_on_expense();
+
+-- Notify every member (except whoever recorded it) when a deposit is added.
+create or replace function public.notify_on_deposit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  member_name text;
+begin
+  select coalesce(full_name, 'A member') into member_name
+  from public.profiles where id = new.member_id;
+
+  insert into public.notifications (user_id, type, title, body, link)
+  select p.id,
+         'deposit',
+         'New deposit recorded',
+         member_name || ' deposited ৳' || trim(to_char(new.amount, 'FM999999990.00'))
+           || coalesce(' — ' || new.note, ''),
+         '/deposits'
+  from public.profiles p
+  where new.recorded_by is null or p.id <> new.recorded_by;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_deposit_created on public.deposits;
+create trigger on_deposit_created
+  after insert on public.deposits
+  for each row execute function public.notify_on_deposit();
 
 -- Keep meal_entries.updated_at fresh.
 create or replace function public.set_updated_at()
