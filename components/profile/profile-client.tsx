@@ -13,6 +13,7 @@ import { useProfile } from "@/components/providers/session-provider";
 import { useTheme } from "@/components/providers/theme-provider";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { compressImage } from "@/lib/image";
 import { MAX_PHOTO_SIZE_MB, STORAGE_BUCKET_AVATARS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -58,15 +59,28 @@ export function ProfileClient() {
     try {
       let nextAvatar = avatarUrl;
       if (pendingFile) {
-        const safe = pendingFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${me.id}/${crypto.randomUUID()}-${safe}`;
-        const up = await supabase.storage
-          .from(STORAGE_BUCKET_AVATARS)
-          .upload(path, pendingFile, { upsert: true, cacheControl: "3600" });
-        if (up.error) throw up.error;
+        // Compress first (smaller upload = far fewer network "Failed to fetch"),
+        // then retry once with a fresh path on a transient failure.
+        const compressed = await compressImage(pendingFile);
+        const safe = compressed.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        let uploadedPath: string | null = null;
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt < 2 && !uploadedPath; attempt++) {
+          try {
+            const path = `${me.id}/${crypto.randomUUID()}-${safe}`;
+            const up = await supabase.storage
+              .from(STORAGE_BUCKET_AVATARS)
+              .upload(path, compressed, { upsert: true, cacheControl: "3600" });
+            if (up.error) throw up.error;
+            uploadedPath = path;
+          } catch (e) {
+            lastError = e;
+          }
+        }
+        if (!uploadedPath) throw lastError ?? new Error("upload failed");
         nextAvatar = supabase.storage
           .from(STORAGE_BUCKET_AVATARS)
-          .getPublicUrl(path).data.publicUrl;
+          .getPublicUrl(uploadedPath).data.publicUrl;
       }
 
       const { error } = await supabase

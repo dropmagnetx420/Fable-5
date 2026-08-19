@@ -11,8 +11,10 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/layout/page-header";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { useProfile } from "@/components/providers/session-provider";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { compressImage } from "@/lib/image";
 import {
   CATEGORIES,
   MAX_PHOTOS_PER_EXPENSE,
@@ -21,11 +23,46 @@ import {
 } from "@/lib/constants";
 import { toDateInput } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import type { ExpenseCategory } from "@/lib/types";
+import type { Database, ExpenseCategory } from "@/lib/types";
 
 interface Pending {
   file: File;
   preview: string;
+}
+
+// Compress + upload one photo, then record it. storage.upload() *throws* a raw
+// "Failed to fetch" on network failure (it doesn't return { error }), so the
+// whole attempt is wrapped and retried once — a failed photo is reported to the
+// caller, never bubbles up to abort the already-saved expense.
+async function uploadPhoto(
+  supabase: SupabaseClient<Database>,
+  expenseId: string,
+  userId: string,
+  file: File
+): Promise<boolean> {
+  const compressed = await compressImage(file);
+  const safe = compressed.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const path = `${userId}/${expenseId}/${crypto.randomUUID()}-${safe}`;
+      const up = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, compressed, { cacheControl: "3600", upsert: false });
+      if (up.error) throw up.error;
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      const rec = await supabase.from("expense_photos").insert({
+        expense_id: expenseId,
+        storage_path: path,
+        public_url: pub.publicUrl,
+        uploaded_by: userId,
+      });
+      if (rec.error) throw rec.error;
+      return true;
+    } catch {
+      // Retry once with a fresh path on a transient network failure.
+    }
+  }
+  return false;
 }
 
 export function ExpenseForm() {
@@ -103,24 +140,8 @@ export function ExpenseForm() {
       // 2. Upload each photo, then record it (photos are permanent afterwards).
       let failed = 0;
       for (const { file } of photos) {
-        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${me.id}/${expense.id}/${crypto.randomUUID()}-${safe}`;
-        const up = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(path, file, { cacheControl: "3600", upsert: false });
-        if (up.error) {
-          failed++;
-          continue;
-        }
-        const { data: pub } = supabase.storage
-          .from(STORAGE_BUCKET)
-          .getPublicUrl(path);
-        await supabase.from("expense_photos").insert({
-          expense_id: expense.id,
-          storage_path: path,
-          public_url: pub.publicUrl,
-          uploaded_by: me.id,
-        });
+        const ok = await uploadPhoto(supabase, expense.id, me.id, file);
+        if (!ok) failed++;
       }
 
       if (failed > 0) toast.warning(t.expenses.uploadFailed);
