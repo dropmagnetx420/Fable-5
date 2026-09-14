@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { createClient } from "@/lib/supabase/client";
-import { SITE_URL, isSupabaseConfigured } from "@/lib/supabase/env";
+import { getAuthRedirectUrl, safeRedirectPath } from "@/lib/supabase/auth";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { t } = useI18n();
@@ -22,13 +23,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [magicLoading, setMagicLoading] = useState(false);
 
   function redirectTarget() {
     if (typeof window === "undefined") return "/dashboard";
-    return (
-      new URLSearchParams(window.location.search).get("redirectTo") ||
-      "/dashboard"
+    return safeRedirectPath(
+      new URLSearchParams(window.location.search).get("redirectTo")
     );
   }
 
@@ -63,7 +64,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           password,
           options: {
             data: { full_name: fullName, phone },
-            emailRedirectTo: `${SITE_URL}/auth/callback`,
+            emailRedirectTo: getAuthRedirectUrl("/auth/callback"),
           },
         });
         if (error) throw error;
@@ -93,7 +94,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${SITE_URL}/auth/callback` },
+        options: { emailRedirectTo: getAuthRedirectUrl("/auth/callback") },
       });
       if (error) throw error;
       toast.success(t.auth.checkEmail);
@@ -101,6 +102,28 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setMagicLoading(false);
+    }
+  }
+
+  async function handleGoogle() {
+    if (!guard()) return;
+    setGoogleLoading(true);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: getAuthRedirectUrl("/auth/callback", redirectTarget()),
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
+        },
+      });
+      if (error) throw error;
+    } catch (err) {
+      setGoogleLoading(false);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     }
   }
 
@@ -166,6 +189,17 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           minLength={6}
         />
 
+        {isLogin && (
+          <div className="-mt-1 text-right">
+            <Link
+              href="/reset-password"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              {t.auth.forgotPassword}
+            </Link>
+          </div>
+        )}
+
         <Button type="submit" loading={loading} className="w-full" size="lg">
           {loading
             ? isLogin
@@ -183,17 +217,31 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      <Button
-        variant="outline"
-        className="w-full"
-        size="lg"
-        loading={magicLoading}
-        onClick={handleMagicLink}
-        type="button"
-      >
-        <Sparkles className="h-4 w-4" />
-        {t.auth.sendLink}
-      </Button>
+      <div className="space-y-3">
+        <Button
+          variant="outline"
+          className="w-full"
+          size="lg"
+          loading={googleLoading}
+          onClick={handleGoogle}
+          type="button"
+        >
+          {!googleLoading && <GoogleMark />}
+          {t.auth.continueWithGoogle}
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          size="lg"
+          loading={magicLoading}
+          onClick={handleMagicLink}
+          type="button"
+        >
+          <Sparkles className="h-4 w-4" />
+          {t.auth.sendLink}
+        </Button>
+      </div>
 
       {!isLogin && (
         <p className="mt-4 rounded-xl bg-primary/10 px-3 py-2 text-center text-xs text-primary">
@@ -211,6 +259,33 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </Link>
       </p>
     </motion.div>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+    >
+      <path
+        fill="#4285F4"
+        d="M21.35 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.22Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 21.67c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.53A9.74 9.74 0 0 0 12 21.67Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.54 13.75A5.86 5.86 0 0 1 6.23 12c0-.61.11-1.2.31-1.75V7.72H3.3A9.72 9.72 0 0 0 2.27 12c0 1.57.38 3.05 1.03 4.28l3.24-2.53Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 6.22c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.84 3.3 14.63 2.33 12 2.33a9.74 9.74 0 0 0-8.7 5.39l3.24 2.53C7.31 7.94 9.46 6.22 12 6.22Z"
+      />
+    </svg>
   );
 }
 

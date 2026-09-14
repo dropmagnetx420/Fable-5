@@ -54,6 +54,8 @@ export const ROUTES = {
   foisal: "/foisal",
   login: "/login",
   register: "/register",
+  resetPassword: "/reset-password",
+  updatePassword: "/update-password",
 } as const;
 
 /** Max photos allowed per expense entry. */

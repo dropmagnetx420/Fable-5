@@ -1,8 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Globe, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import {
+  Camera,
+  Check,
+  Globe,
+  KeyRound,
+  LogOut,
+  Monitor,
+  Moon,
+  Sun,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -167,6 +177,27 @@ export function ProfileClient() {
           {saving ? t.common.saving : t.common.save}
         </Button>
       </div>
+
+      {/* Password */}
+      <section className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <KeyRound className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold">{t.profile.passwordSecurity}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t.profile.passwordHint}
+            </p>
+            <Link
+              href="/update-password"
+              className="mt-3 inline-flex h-9 items-center justify-center rounded-xl border border-border px-3 text-sm font-medium transition hover:bg-muted"
+            >
+              {t.profile.changePassword}
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {/* Language */}
       <section>
