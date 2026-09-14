@@ -12,8 +12,9 @@ Bilingual UI — **English** (default) with a one-tap **বাংলা** toggle
 
 ## ✨ Features
 
-- **Auth & roles** — email + password *and* magic-link sign-in. The **first person to
-  register automatically becomes the Manager**; everyone after is a Member.
+- **Auth & roles** — email + password, password reset/update, magic-link sign-in, and
+  optional Google sign-in. The **first person to register automatically becomes the
+  Manager**; everyone after is a Member.
 - **Expenses (everyone)** — amount, description, category (Grocery / Vegetables / Meat /
   Others), date, and **multiple photo uploads**. Photos are **permanent** — once saved
   they can never be edited or deleted (only the Manager can soft-remove a whole entry).
@@ -97,13 +98,30 @@ npm run typecheck  # tsc --noEmit
    It is safe to re-run (uses `if not exists` / `or replace` / `drop … if exists`).
 3. **Auth → Providers → Email:** ensure **Email** is enabled. For password sign-up
    without email confirmation during testing, you can disable "Confirm email"
-   (**Auth → Providers → Email → Confirm email**).
-4. **Auth → URL Configuration:** set **Site URL** to your app URL and add it to
+   (**Auth → Providers → Email → Confirm email**). The app includes **Forgot
+   password?** on the login screen and a signed-in **Change password** action in
+   Profile; these use Supabase Auth only and do not touch app data.
+4. **Optional Google sign-in:** in **Auth → Providers → Google**, enable Google and
+   paste the Google OAuth client ID and secret. In Google Cloud, add Supabase's
+   callback URL as an authorized redirect URI:
+   `https://<your-project-ref>.supabase.co/auth/v1/callback`.
+   The button works on both Login and Register; Google users are provisioned by the
+   existing profile trigger.
+5. **Auth → URL Configuration:** set **Site URL** to your app URL and add it to
    **Redirect URLs** (e.g. `http://localhost:3000/**` for dev and
-   `https://your-site.netlify.app/**` for production). This is required for magic links.
-5. Copy your keys from **Project Settings → API** into `.env.local` (next section).
+   `https://your-site.netlify.app/**` for production). This covers
+   `/auth/callback` for Google/magic links and `/update-password` for recovery.
+6. Copy your keys from **Project Settings → API** into `.env.local` (next section).
 
 The **first account you register** becomes the **Manager** automatically.
+
+> **Existing data is safe.** This feature only calls Supabase Auth; it adds no tables,
+> migrations, or delete/reset operation. Supabase normally links a verified Google
+> identity to an existing Auth user when the email address is the same, so users who
+> already have an email/password account should choose that same Google email. This
+> keeps the existing profile UUID—and therefore all expenses, meals, deposits, and
+> history—connected. If your project has **manual identity linking** enabled, sign in
+> with the existing account first and link Google before using Google sign-in.
 
 ---
 
@@ -150,10 +168,11 @@ settings are automatic.
 2. In Netlify: **Add new site → Import an existing project**, then pick the repo.
    Build command `next build` and the `@netlify/plugin-nextjs` plugin are picked up
    from `netlify.toml` (Node 20).
-3. **Site settings → Environment variables:** add the four variables above. Set
+3. **Site settings → Environment variables:** add the variables above. Set
    `NEXT_PUBLIC_SITE_URL` to your Netlify URL (e.g. `https://your-site.netlify.app`).
 4. Back in **Supabase → Auth → URL Configuration**, add the Netlify URL to **Site URL**
-   and **Redirect URLs** (`https://your-site.netlify.app/**`).
+   and **Redirect URLs** (`https://your-site.netlify.app/**`). If Google is enabled,
+   also complete the Google provider setup above.
 5. **Deploy.** Redeploy after any env-var change.
 
 ---
@@ -177,10 +196,10 @@ or on Netlify), not in `npm run dev`.
 
 ```
 app/
-  (auth)/            login & register (magic link + password)
+  (auth)/            login, register, password reset, and password update
   (app)/             dashboard, expenses, meals, deposits, settlement, members, profile
   foisal/            secret passcode admin panel (manager rotation + name edits)
-  auth/callback/     Supabase email/magic-link exchange
+  auth/callback/     Supabase OAuth/email/magic-link exchange
 components/          ui kit, layout shell, and per-feature client components
 lib/
   supabase/          browser + server clients, middleware, env guard, service-role admin
